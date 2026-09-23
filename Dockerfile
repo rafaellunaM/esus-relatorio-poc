@@ -9,7 +9,15 @@
 # docker.io para um proxy interno que nao enxergamos aqui. Apontando para um host
 # diferente de docker.io, o build ignora esse redirecionamento sem precisar
 # mexer na config global do builder.
-FROM mirror.gcr.io/library/eclipse-temurin:17-jdk-jammy AS installer
+#
+# JDK 8, nao 17: o e-SUS AB PEC (JBoss AS 7.2 + Liquibase antigo) e uma
+# aplicacao da era pre-Java-9. Rodando o instalador com JDK 17 o encapsulamento
+# forte de modulos (padrao desde o JDK 16) e a remocao de APIs como
+# javax.xml.bind quebram reflection que o Liquibase/Hibernate antigos usam
+# pra rodar as migrations do schema do e-SUS -- e e exatamente isso que causa
+# falha no meio do MigratorRunner durante a instalacao. jammy continua sendo
+# Ubuntu 22.04; so a major version do JDK muda aqui.
+FROM mirror.gcr.io/library/eclipse-temurin:8-jdk-jammy AS installer
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
@@ -90,7 +98,7 @@ RUN java -jar /tmp/installer.jar -console -continue -treinamento \
     && rm -f /tmp/installer.jar
 
 
-FROM mirror.gcr.io/library/eclipse-temurin:17-jre-jammy AS runtime
+FROM mirror.gcr.io/library/eclipse-temurin:8-jre-jammy AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
@@ -98,6 +106,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && sed -i 's/^# *pt_BR.UTF-8 UTF-8/pt_BR.UTF-8 UTF-8/' /etc/locale.gen \
     && locale-gen pt_BR.UTF-8
+
+# Mesmo UID/GID que o instalador do PostgreSQL embutido usou no estagio
+# "installer" pra rodar o initdb sem ser root (confirmado: uid=1000,
+# gid=1000). Sem isso, os arquivos de data/ (donos numericos = 1000)
+# ficam orfaos no estagio runtime, sem nenhum usuario "postgres" pra
+# mapear esse UID -- e o entrypoint.sh falha ao tentar "su postgres"
+# porque esse usuario nao existe aqui.
+RUN groupadd -g 1000 postgres \
+    && useradd -u 1000 -g 1000 -m -s /bin/bash postgres
 
 COPY --from=installer /opt/e-SUS /opt/e-SUS
 COPY entrypoint.sh /entrypoint.sh

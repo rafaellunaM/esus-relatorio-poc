@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-PG_ROOT="/opt/e-SUS/database/PostgreSQL/9.6"
+PG_ROOT="/opt/e-SUS/database/postgresql-9.6.13-1-linux-x64"
 PG_DATA="$PG_ROOT/data"
 PG_CTL="$PG_ROOT/bin/pg_ctl"
 PG_LOG="/opt/e-SUS/database/postgres.log"
@@ -28,4 +28,4 @@ start_postgres() {
 
 start_postgres
 
-exec /opt/e-SUS/webserver/standalone.sh
+exec /opt/e-SUS/webserver/standalone.sh -b 0.0.0.0
