@@ -4,7 +4,7 @@ set -e
 PG_ROOT="/opt/e-SUS/database/postgresql-9.6.13-1-linux-x64"
 PG_DATA="$PG_ROOT/data"
 PG_CTL="$PG_ROOT/bin/pg_ctl"
-PG_LOG="/opt/e-SUS/database/postgres.log"
+PG_LOG="$PG_DATA/postgres.log"
 INIT_SCRIPT="/etc/init.d/e-SUS-AB-PostgreSQL"
 
 start_postgres() {
@@ -17,6 +17,13 @@ start_postgres() {
         echo "Nao encontrei o PostgreSQL embutido em $PG_ROOT" >&2
         exit 1
     fi
+
+    # postmaster.pid pode ter sobrado de um shutdown abrupto (ex.: durante
+    # a instalacao, ou de um container anterior). Como neste ponto nenhum
+    # processo postgres real esta rodando ainda dentro deste container,
+    # qualquer pid aqui e sempre obsoleto -- removemos pra evitar o aviso
+    # "another server might be running" travar o start.
+    rm -f "$PG_DATA/postmaster.pid"
 
     if id postgres >/dev/null 2>&1; then
         chown -R postgres:postgres "$PG_ROOT"
